@@ -230,15 +230,14 @@ def payment_keyboard():
     keyboard = [
         [types.KeyboardButton(text="📱 Оплатить по номеру телефона")],
         [types.KeyboardButton(text="💳 Оплатить по номеру карты")],
-        [types.KeyboardButton(text="⚡ Быстрая оплата (Т-Банк)")],
-        [types.KeyboardButton(text="💫 Быстрая оплата (СБП)")],
+        [types.KeyboardButton(text="⚡ Открыть Т-Банк")],
     ]
-
+    
     if QRCODE_AVAILABLE:
         keyboard.append([types.KeyboardButton(text="🤖 Оплатить по QR-коду")])
-
+    
     keyboard.append([types.KeyboardButton(text="🔙 Назад")])
-
+    
     return types.ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 
@@ -256,7 +255,7 @@ def out_of_stock_keyboard(user_id: int, order_index: int, has_addons: bool = Tru
             ),
         ]
     ]
-
+    
     if has_addons:
         keyboard.append([
             types.InlineKeyboardButton(
@@ -264,14 +263,14 @@ def out_of_stock_keyboard(user_id: int, order_index: int, has_addons: bool = Tru
                 callback_data=f"no_addon_{user_id}_{order_index}"
             )
         ])
-
+    
     keyboard.append([
         types.InlineKeyboardButton(
             text="❌ Отменить заказ", 
             callback_data=f"cancel_{user_id}"
         )
     ])
-
+    
     return types.InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
@@ -289,7 +288,7 @@ async def generate_payment_qr(amount: float = None):
     """Генерирует QR-код для оплаты"""
     if not QRCODE_AVAILABLE:
         raise ImportError("Библиотека qrcode не установлена")
-
+    
     try:
         payment_info = (
             f"Получатель: Shawarma Sheikh\n"
@@ -297,10 +296,10 @@ async def generate_payment_qr(amount: float = None):
             f"Карта: {CARD_NUMBER}\n"
             f"Банк: {BANK_NAME}"
         )
-
+        
         if amount:
             payment_info += f"\nСумма: {amount} руб."
-
+        
         qr = qrcode.QRCode(
             version=3,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -309,26 +308,26 @@ async def generate_payment_qr(amount: float = None):
         )
         qr.add_data(payment_info)
         qr.make(fit=True)
-
+        
         img = qr.make_image(fill_color="black", back_color="white")
-
+        
         if img.mode != 'RGB':
             img = img.convert('RGB')
-
+        
         bio = BytesIO()
         img.save(bio, format='PNG', optimize=True)
         bio.seek(0)
-
+        
         return bio
-
+        
     except Exception as e:
         logging.error(f"Ошибка создания QR-кода: {e}")
-
+        
         try:
             simple_text = f"Тел: {PHONE_NUMBER}"
             if amount:
                 simple_text += f" Сумма: {amount}р"
-
+            
             img_simple = qrcode.make(simple_text)
             bio = BytesIO()
             img_simple.save(bio, format='PNG')
@@ -339,28 +338,27 @@ async def generate_payment_qr(amount: float = None):
             raise
 
 
-# ===== WEB-СЕРВЕР ДЛЯ REPLIT =====
+# ===== WEB-СЕРВЕР ДЛЯ ПОДДЕРЖАНИЯ АКТИВНОСТИ =====
 async def health_check(request):
     """Эндпоинт для проверки здоровья бота"""
     return web.Response(text="✅ Бот работает!", status=200)
 
 async def web_server():
-    """Запускает веб-сервер для поддержания бота активным"""
+    """Запускает веб-сервер"""
     app = web.Application()
     app.router.add_get('/', health_check)
     app.router.add_get('/ping', health_check)
     app.router.add_get('/health', health_check)
-
+    
     runner = web.AppRunner(app)
     await runner.setup()
-
-    # Порт для Replit (обычно 8080 или из переменной окружения)
+    
     port = int(os.getenv('PORT', 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
-
+    
     print(f"🌐 Веб-сервер запущен на порту {port}")
     await site.start()
-
+    
     return runner
 
 
@@ -368,7 +366,7 @@ async def web_server():
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     user_orders[user_id] = []
-
+    
     hour = datetime.now().hour
     if 6 <= hour < 12:
         greeting = "☀️ Доброе утро"
@@ -378,10 +376,10 @@ async def cmd_start(message: types.Message):
         greeting = "🌙 Добрый вечер"
     else:
         greeting = "🦉 Доброй ночи"
-
+    
     points = loyalty_points.get(user_id, 0)
     bonus_text = f"\n\n🎁 Бонусных баллов: {points}" if points > 0 else ""
-
+    
     await message.answer(
         f"{greeting}, {message.from_user.full_name}!\n\n"
         f"🌯 <b>Shawarma Sheikh</b>\n"
@@ -408,7 +406,7 @@ async def select_item(message: types.Message, state: FSMContext):
     item_name = message.text
     await state.update_data(item_name=item_name)
     await state.set_state(OrderState.selecting_size)
-
+    
     text = f"🌯 <b>{item_name}</b>\n\n{MENU[item_name]['desc']}\n\nВыбери размер:"
     await message.answer(text, reply_markup=size_keyboard(item_name))
 
@@ -419,10 +417,10 @@ async def select_size(message: types.Message, state: FSMContext):
     data = await state.get_data()
     item_name = data["item_name"]
     price = MENU[item_name]["prices"][size]
-
+    
     await state.update_data(size=size, base_price=price)
     await state.set_state(OrderState.selecting_sauce)
-
+    
     text = f"✅ <b>{item_name}</b> ({size}) - {price}₽\n\nВыбери соус:"
     await message.answer(text, reply_markup=sauce_keyboard())
 
@@ -432,10 +430,10 @@ async def select_sauce(message: types.Message, state: FSMContext):
     sauce = message.text
     await state.update_data(sauce=sauce, addons=[], addons_price=0)
     await state.set_state(OrderState.selecting_addons)
-
+    
     data = await state.get_data()
     total = data["base_price"]
-
+    
     text = (
         f"✅ Соус: <b>{sauce}</b>\n\n"
         f"Нужны добавки?\n"
@@ -459,21 +457,21 @@ async def show_addons(message: types.Message, state: FSMContext):
 async def toggle_addon(message: types.Message, state: FSMContext):
     addon_text = message.text.replace("✅ ", "").split(" - ")[0]
     addon_name = addon_text.strip()
-
+    
     if addon_name not in ADDONS:
         return
-
+    
     data = await state.get_data()
     addons = data.get("addons", [])
     addons_price = data.get("addons_price", 0)
-
+    
     if addon_name in addons:
         addons.remove(addon_name)
         addons_price -= ADDONS[addon_name]
     else:
         addons.append(addon_name)
         addons_price += ADDONS[addon_name]
-
+    
     await state.update_data(addons=addons, addons_price=addons_price)
     await message.answer("Добавки обновлены:", reply_markup=addons_list_keyboard(addons))
 
@@ -486,7 +484,7 @@ async def finish_addons(message: types.Message, state: FSMContext):
 async def add_to_cart_and_show(message: types.Message, state: FSMContext):
     data = await state.get_data()
     user_id = message.from_user.id
-
+    
     order_item = {
         "item": data["item_name"],
         "size": data["size"],
@@ -494,17 +492,17 @@ async def add_to_cart_and_show(message: types.Message, state: FSMContext):
         "addons": data.get("addons", []),
         "price": data["base_price"] + data.get("addons_price", 0)
     }
-
+    
     if user_id not in user_orders:
         user_orders[user_id] = []
     user_orders[user_id].append(order_item)
-
+    
     text = f"✅ Добавлено:\n🌯 {order_item['item']} ({order_item['size']})\n"
     text += f"🥫 {order_item['sauce']}\n"
     if order_item['addons']:
         text += f"➕ {', '.join(order_item['addons'])}\n"
     text += f"💰 {order_item['price']}₽"
-
+    
     await message.answer(text, reply_markup=add_more_keyboard())
     await state.clear()
 
@@ -518,24 +516,24 @@ async def add_more(message: types.Message, state: FSMContext):
 async def show_cart(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     orders = user_orders.get(user_id, [])
-
+    
     if not orders:
         await message.answer("🙁 Корзина пуста", reply_markup=main_menu())
         return
-
+    
     total = sum(item["price"] for item in orders)
     text = "🛒 <b>Ваша корзина:</b>\n\n"
-
+    
     for i, item in enumerate(orders, 1):
         text += f"{i}. <b>{item['item']}</b> ({item['size']})\n"
         text += f"   🥫 {item['sauce']}\n"
         if item['addons']:
             text += f"   ➕ {', '.join(item['addons'])}\n"
         text += f"   💰 {item['price']}₽\n\n"
-
+    
     text += f"<b>ИТОГО: {total}₽</b>\n\n"
     text += "💳 Нажми 'Перейти к оплате'"
-
+    
     await message.answer(text, reply_markup=add_more_keyboard())
 
 
@@ -544,7 +542,7 @@ async def show_cart(message: types.Message, state: FSMContext):
 async def show_order_history(message: types.Message):
     user_id = str(message.from_user.id)
     user_history = orders_history.get(user_id, [])
-
+    
     if not user_history:
         await message.answer(
             "📜 <b>История заказов пуста</b>\n\n"
@@ -553,9 +551,9 @@ async def show_order_history(message: types.Message):
             reply_markup=main_menu()
         )
         return
-
+    
     recent_orders = user_history[-5:]
-
+    
     text = "📜 <b>Последние заказы:</b>\n\n"
     for i, order in enumerate(reversed(recent_orders), 1):
         total = sum(item["price"] for item in order["items"])
@@ -567,18 +565,17 @@ async def show_order_history(message: types.Message):
                 text += f" | ➕ {', '.join(item['addons'])}"
             text += "\n"
         text += f"💰 <b>Итого: {total}₽</b>\n\n"
-
+    
     kb = types.InlineKeyboardMarkup(inline_keyboard=[])
     for i, order in enumerate(reversed(recent_orders), 1):
         total = sum(item["price"] for item in order["items"])
-        items_desc = ", ".join([f"{item['item']}" for item in order["items"]])
         kb.inline_keyboard.append([
             types.InlineKeyboardButton(
                 text=f"🔄 Повторить заказ #{i} - {total}₽",
                 callback_data=f"repeat_{len(user_history) - i}"
             )
         ])
-
+    
     await message.answer(text, reply_markup=kb)
 
 
@@ -586,19 +583,18 @@ async def show_order_history(message: types.Message):
 async def repeat_order(callback: types.CallbackQuery):
     user_id = str(callback.from_user.id)
     order_index = int(callback.data.split("_")[1])
-
+    
     user_history = orders_history.get(user_id, [])
-
+    
     if not user_history or order_index >= len(user_history):
         await callback.answer("Заказ не найден")
         return
-
+    
     order = user_history[order_index]
-
     user_orders[callback.from_user.id] = order["items"].copy()
-
+    
     total = sum(item["price"] for item in order["items"])
-
+    
     text = "✅ <b>Заказ повторен!</b>\n\n🛒 Корзина:\n\n"
     for i, item in enumerate(order["items"], 1):
         text += f"{i}. <b>{item['item']}</b> ({item['size']})\n"
@@ -607,7 +603,7 @@ async def repeat_order(callback: types.CallbackQuery):
             text += f"   ➕ {', '.join(item['addons'])}\n"
         text += f"   💰 {item['price']}₽\n\n"
     text += f"<b>ИТОГО: {total}₽</b>\n\nНажми 'Перейти к оплате'"
-
+    
     await callback.message.edit_text(text, reply_markup=add_more_keyboard())
     await callback.answer("✅ Заказ добавлен в корзину!")
 
@@ -623,19 +619,19 @@ async def clear_cart(message: types.Message):
 async def start_payment(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     orders = user_orders.get(user_id, [])
-
+    
     if not orders:
         await message.answer("Корзина пуста! Сначала добавь шаурму.", reply_markup=main_menu())
         return
-
+    
     total = sum(item["price"] for item in orders)
-
+    
     points = loyalty_points.get(user_id, 0)
     bonus_text = f"\n🎁 Ваши бонусы: {points} баллов" if points > 0 else ""
-
+    
     await state.update_data(total=total)
     await state.set_state(OrderState.waiting_phone)
-
+    
     text = (
         f"💳 <b>Оплата заказа</b>\n\n"
         f"Сумма к оплате: <b>{total}₽</b>{bonus_text}\n\n"
@@ -645,7 +641,7 @@ async def start_payment(message: types.Message, state: FSMContext):
         f"3. После проверки заказ пойдёт в работу\n\n"
         f"📞 Для начала введи номер телефона:"
     )
-
+    
     kb = types.ReplyKeyboardMarkup(
         keyboard=[[types.KeyboardButton(text="📱 Отправить номер", request_contact=True)]],
         resize_keyboard=True
@@ -677,24 +673,24 @@ async def ask_comment(message: types.Message, state: FSMContext):
 @dp.message(OrderState.waiting_comment)
 async def get_comment(message: types.Message, state: FSMContext):
     comment = message.text
-
+    
     if len(comment) > 100:
         await message.answer(
             f"❌ Слишком длинный комментарий ({len(comment)} символов)\n"
             f"Максимум 100 символов. Попробуй ещё раз:"
         )
         return
-
+    
     if comment == "Нет":
         comment = "Без комментария"
-
+    
     await state.update_data(comment=comment)
     await ask_time(message, state)
 
 
 async def ask_time(message: types.Message, state: FSMContext):
     await state.set_state(OrderState.waiting_time)
-
+    
     kb = types.ReplyKeyboardMarkup(
         keyboard=[
             [types.KeyboardButton(text="Как можно скорее")],
@@ -712,24 +708,23 @@ async def show_payment_options(message: types.Message, state: FSMContext):
     time_str = message.text
     await state.update_data(time=time_str)
     await state.set_state(OrderState.waiting_screenshot)
-
+    
     data = await state.get_data()
     total = data["total"]
-
+    
     text = (
         f"💳 <b>Оплата {total}₽</b>\n\n"
         f"Выбери способ оплаты:\n"
         f"📱 По номеру телефона\n"
         f"💳 По номеру карты\n"
-        f"⚡ Быстрая оплата - ссылка на банк\n"
-        f"💫 СБП - мгновенный перевод\n"
+        f"⚡ Открыть Т-Банк (быстрее всего!)\n"
     )
-
+    
     if QRCODE_AVAILABLE:
         text += "🤖 QR-код - сканируй и плати\n"
-
-    text += "\n⚡ <i>Быстрая оплата сразу откроет приложение банка!</i>"
-
+    
+    text += "\n⚡ <i>Кнопка Т-Банк сразу откроет приложение!</i>"
+    
     await message.answer(text, reply_markup=payment_keyboard())
 
 
@@ -738,16 +733,14 @@ async def show_payment_options(message: types.Message, state: FSMContext):
 async def show_phone_payment(message: types.Message, state: FSMContext):
     data = await state.get_data()
     total = data["total"]
-
-    pay_link = f"https://www.tinkoff.ru/collectmoney/pay/{CLEAN_PHONE}?sum={total}"
-
+    
     kb = types.InlineKeyboardMarkup(inline_keyboard=[
         [types.InlineKeyboardButton(
-            text=f"⚡ Быстро оплатить {total}₽",
-            url=pay_link
+            text=f"⚡ Открыть Т-Банк и оплатить {total}₽",
+            url=f"tinkoff://transfer/phone/{CLEAN_PHONE}?sum={total}"
         )]
     ])
-
+    
     text = (
         f"📱 <b>Оплата по номеру телефона</b>\n\n"
         f"Сумма: <b>{total}₽</b>\n\n"
@@ -757,7 +750,7 @@ async def show_phone_payment(message: types.Message, state: FSMContext):
         f"или воспользуйтесь кнопкой ниже\n\n"
         f"После оплаты отправьте сюда скриншот!"
     )
-
+    
     await message.answer(text, reply_markup=kb)
 
 
@@ -766,16 +759,14 @@ async def show_phone_payment(message: types.Message, state: FSMContext):
 async def show_card_payment(message: types.Message, state: FSMContext):
     data = await state.get_data()
     total = data["total"]
-
-    pay_link = f"https://www.tinkoff.ru/cardtocard?card={CARD_NUMBER.replace(' ', '')}&sum={total}"
-
+    
     kb = types.InlineKeyboardMarkup(inline_keyboard=[
         [types.InlineKeyboardButton(
-            text=f"💳 Перевести {total}₽ на карту",
-            url=pay_link
+            text=f"💳 Открыть Т-Банк и оплатить {total}₽",
+            url=f"tinkoff://transfer/phone/{CLEAN_PHONE}?sum={total}"
         )]
     ])
-
+    
     text = (
         f"💳 <b>Оплата по номеру карты</b>\n\n"
         f"Сумма: <b>{total}₽</b>\n\n"
@@ -785,78 +776,38 @@ async def show_card_payment(message: types.Message, state: FSMContext):
         f"или на кнопку ниже для быстрого перевода\n\n"
         f"После оплаты отправьте сюда скриншот!"
     )
-
+    
     await message.answer(text, reply_markup=kb)
 
 
 # ===== БЫСТРАЯ ОПЛАТА Т-БАНК =====
-@dp.message(OrderState.waiting_screenshot, F.text == "⚡ Быстрая оплата (Т-Банк)")
+@dp.message(OrderState.waiting_screenshot, F.text == "⚡ Открыть Т-Банк")
 async def show_quick_tinkoff_payment(message: types.Message, state: FSMContext):
+    """Быстрая оплата через Т-Банк"""
     data = await state.get_data()
     total = data["total"]
-
-    pay_link = f"https://www.tinkoff.ru/collectmoney/pay/{CLEAN_PHONE}?sum={total}"
-
+    
     kb = types.InlineKeyboardMarkup(inline_keyboard=[
         [types.InlineKeyboardButton(
-            text=f"💳 Оплатить {total}₽ в Т-Банк",
-            url=pay_link
+            text=f"💳 Открыть Т-Банк и оплатить {total}₽",
+            url=f"tinkoff://transfer/phone/{CLEAN_PHONE}?sum={total}"
         )],
         [types.InlineKeyboardButton(
-            text="📱 Открыть в приложении",
-            url=f"tinkoff://collectmoney/pay/{CLEAN_PHONE}?sum={total}"
+            text="📱 Открыть в браузере",
+            url=f"https://www.tinkoff.ru/transfer/phone/{CLEAN_PHONE}"
         )]
     ])
-
+    
     await message.answer(
-        f"⚡ <b>Быстрая оплата через Т-Банк</b>\n\n"
+        f"⚡ <b>Оплата через Т-Банк</b>\n\n"
         f"💰 Сумма: <b>{total}₽</b>\n\n"
         f"<b>Как оплатить:</b>\n"
         f"1️⃣ Нажмите на кнопку ниже\n"
         f"2️⃣ Откроется приложение Т-Банк\n"
-        f"3️⃣ Сумма уже будет указана\n"
+        f"3️⃣ Введите сумму: <b>{total}₽</b>\n"
         f"4️⃣ Подтвердите перевод\n\n"
         f"📸 <b>После оплаты отправьте скриншот сюда</b>\n\n"
-        f"<i>Работает даже если нет Т-Банк - откроется веб-версия</i>",
-        reply_markup=kb,
-        disable_web_page_preview=True
-    )
-
-
-# ===== БЫСТРАЯ ОПЛАТА СБП =====
-@dp.message(OrderState.waiting_screenshot, F.text == "💫 Быстрая оплата (СБП)")
-async def show_quick_sbp_payment(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    total = data["total"]
-
-    sbp_link = f"https://qr.nspk.ru/AS010001?sum={int(total * 100)}&cur=RUB&crc=0000"
-    phone_link = f"https://pay.nspk.ru/transfer-to-phone?phone={CLEAN_PHONE}&sum={total}"
-
-    kb = types.InlineKeyboardMarkup(inline_keyboard=[
-        [types.InlineKeyboardButton(
-            text=f"💫 Оплатить {total}₽ через СБП",
-            url=sbp_link
-        )],
-        [types.InlineKeyboardButton(
-            text="📱 Перевод по номеру телефона",
-            url=phone_link
-        )],
-        [types.InlineKeyboardButton(
-            text="🏦 Открыть в банке",
-            url=f"bank://sbp/pay?phone={CLEAN_PHONE}&sum={total}"
-        )]
-    ])
-
-    await message.answer(
-        f"💫 <b>Мгновенная оплата через СБП</b>\n\n"
-        f"💰 Сумма: <b>{total}₽</b>\n\n"
-        f"<b>Как оплатить:</b>\n"
-        f"1️⃣ Нажмите на кнопку ниже\n"
-        f"2️⃣ Откроется ваш банк\n"
-        f"3️⃣ Сумма автоматически подставится\n"
-        f"4️⃣ Подтвердите перевод\n\n"
-        f"📸 <b>После оплаты отправьте скриншот/чек</b>\n\n"
-        f"✨ <i>Без комиссии • Мгновенно • Любой банк</i>",
+        f"<i>Если приложение не открылось - нажмите вторую кнопку</i>",
         reply_markup=kb,
         disable_web_page_preview=True
     )
@@ -872,20 +823,20 @@ async def show_qr_payment(message: types.Message, state: FSMContext):
             reply_markup=payment_keyboard()
         )
         return
-
+    
     data = await state.get_data()
     total = data["total"]
-
+    
     try:
         processing_msg = await message.answer(
             "⚙️ <i>Генерирую QR-код...</i>",
             reply_markup=types.ReplyKeyboardRemove()
         )
-
+        
         qr_image = await generate_payment_qr(total)
-
+        
         await processing_msg.delete()
-
+        
         await message.answer_photo(
             photo=types.BufferedInputFile(
                 qr_image.getvalue(),
@@ -903,7 +854,7 @@ async def show_qr_payment(message: types.Message, state: FSMContext):
                 f"⚡ <i>Самый быстрый способ!</i>"
             )
         )
-
+        
     except Exception as e:
         logging.error(f"Ошибка при показе QR-кода: {e}")
         await message.answer(
@@ -923,13 +874,13 @@ async def receive_screenshot(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     data = await state.get_data()
     user = message.from_user
-
+    
     orders = user_orders.get(user_id, [])
     total = data["total"]
     phone = data.get("phone", "Не указан")
     comment = data.get("comment", "Без комментария")
     time_str = data.get("time", "Как можно скорее")
-
+    
     cook_text = (
         f"🔔 <b>НОВЫЙ ЗАКАЗ - ПРОВЕРКА ОПЛАТЫ</b>\n\n"
         f"👤 Клиент: {user.full_name}\n"
@@ -939,18 +890,18 @@ async def receive_screenshot(message: types.Message, state: FSMContext):
         f"📅 {datetime.now().strftime('%H:%M')}\n\n"
         f"<b>Заказ:</b>\n"
     )
-
+    
     for i, item in enumerate(orders, 1):
         cook_text += f"\n{i}. <b>{item['item']}</b> ({item['size']})\n"
         cook_text += f"   🥫 {item['sauce']}\n"
         if item['addons']:
             cook_text += f"   ➕ {', '.join(item['addons'])}\n"
         cook_text += f"   💰 {item['price']}₽\n"
-
+    
     cook_text += f"\n💰 <b>СУММА К ОПЛАТЕ: {total}₽</b>\n"
     cook_text += f"📝 {comment}\n\n"
     cook_text += f"Проверь скриншот оплаты выше ↑"
-
+    
     kb = types.InlineKeyboardMarkup(inline_keyboard=[
         [
             types.InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"confirm_{user_id}"),
@@ -960,9 +911,9 @@ async def receive_screenshot(message: types.Message, state: FSMContext):
             types.InlineKeyboardButton(text="⚠️ Нет в наличии", callback_data=f"outofstock_{user_id}")
         ]
     ])
-
+    
     sent = False
-
+    
     try:
         await bot.send_photo(
             chat_id=COOK_CHAT_ID,
@@ -973,7 +924,7 @@ async def receive_screenshot(message: types.Message, state: FSMContext):
         sent = True
     except Exception as e:
         print(f"Ошибка отправки в группу: {e}")
-
+    
     if not sent:
         try:
             await bot.send_photo(
@@ -985,7 +936,7 @@ async def receive_screenshot(message: types.Message, state: FSMContext):
             sent = True
         except Exception as e:
             print(f"Ошибка отправки в личку: {e}")
-
+    
     if sent:
         await message.answer(
             "✅ Скриншот получен!\n\n"
@@ -993,7 +944,7 @@ async def receive_screenshot(message: types.Message, state: FSMContext):
             "После проверки заказ пойдёт в работу",
             reply_markup=types.ReplyKeyboardRemove()
         )
-
+        
         pending_payments[user_id] = {
             "orders": orders,
             "phone": phone,
@@ -1018,13 +969,13 @@ async def receive_screenshot(message: types.Message, state: FSMContext):
 async def out_of_stock(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[1])
     payment_data = pending_payments.get(user_id)
-
+    
     if not payment_data:
         await callback.answer("Заказ не найден")
         return
-
+    
     orders = payment_data["orders"]
-
+    
     if len(orders) == 1:
         has_addons = bool(orders[0]['addons'])
         await callback.message.edit_caption(
@@ -1043,12 +994,12 @@ async def out_of_stock(callback: types.CallbackQuery):
         kb.inline_keyboard.append([
             types.InlineKeyboardButton(text="❌ Отменить заказ", callback_data=f"cancel_{user_id}")
         ])
-
+        
         await callback.message.edit_caption(
             caption=callback.message.caption + "\n\n⚠️ <b>ВЫБЕРИТЕ ПОЗИЦИЮ:</b>",
             reply_markup=kb
         )
-
+    
     await callback.answer("Выберите отсутствующий товар")
 
 
@@ -1057,14 +1008,14 @@ async def select_item_out_of_stock(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     user_id = int(parts[3])
     order_index = int(parts[4])
-
+    
     payment_data = pending_payments.get(user_id)
     if not payment_data:
         await callback.answer("Заказ не найден")
         return
-
+    
     has_addons = bool(payment_data["orders"][order_index]['addons'])
-
+    
     await callback.message.edit_caption(
         caption=callback.message.caption + f"\n\nПозиция {order_index + 1}",
         reply_markup=out_of_stock_keyboard(user_id, order_index, has_addons)
@@ -1077,16 +1028,16 @@ async def no_item_available(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     user_id = int(parts[2])
     order_index = int(parts[3])
-
+    
     payment_data = pending_payments.get(user_id)
     if not payment_data:
         await callback.answer("Заказ не найден")
         return
-
+    
     chat_id = payment_data["chat_id"]
     orders = payment_data["orders"]
     item = orders[order_index]
-
+    
     await bot.send_message(
         chat_id=chat_id,
         text=(
@@ -1099,10 +1050,10 @@ async def no_item_available(callback: types.CallbackQuery):
         ),
         reply_markup=client_edit_keyboard()
     )
-
+    
     pending_payments[user_id]["editing_index"] = order_index
     pending_payments[user_id]["editing_type"] = "item"
-
+    
     await callback.message.edit_caption(
         caption=callback.message.caption + f"\n\n❌ <b>ШАУРМА '{item['item']}' НЕТ В НАЛИЧИИ</b>\nОжидаем реакции клиента...",
         reply_markup=None
@@ -1115,16 +1066,16 @@ async def no_sauce_available(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     user_id = int(parts[2])
     order_index = int(parts[3])
-
+    
     payment_data = pending_payments.get(user_id)
     if not payment_data:
         await callback.answer("Заказ не найден")
         return
-
+    
     chat_id = payment_data["chat_id"]
     orders = payment_data["orders"]
     item = orders[order_index]
-
+    
     await bot.send_message(
         chat_id=chat_id,
         text=(
@@ -1134,10 +1085,10 @@ async def no_sauce_available(callback: types.CallbackQuery):
         ),
         reply_markup=client_edit_keyboard()
     )
-
+    
     pending_payments[user_id]["editing_index"] = order_index
     pending_payments[user_id]["editing_type"] = "sauce"
-
+    
     await callback.message.edit_caption(
         caption=callback.message.caption + f"\n\n❌ <b>СОУС '{item['sauce']}' НЕТ В НАЛИЧИИ</b>\nОжидаем реакции клиента...",
         reply_markup=None
@@ -1150,22 +1101,22 @@ async def no_addon_available(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     user_id = int(parts[2])
     order_index = int(parts[3])
-
+    
     payment_data = pending_payments.get(user_id)
     if not payment_data:
         await callback.answer("Заказ не найден")
         return
-
+    
     chat_id = payment_data["chat_id"]
     orders = payment_data["orders"]
     item = orders[order_index]
-
+    
     if not item['addons']:
         await callback.answer("У клиента нет добавок!")
         return
-
+    
     addons_text = "\n".join([f"• {a}" for a in item['addons']])
-
+    
     await bot.send_message(
         chat_id=chat_id,
         text=(
@@ -1176,10 +1127,10 @@ async def no_addon_available(callback: types.CallbackQuery):
         ),
         reply_markup=client_edit_keyboard()
     )
-
+    
     pending_payments[user_id]["editing_index"] = order_index
     pending_payments[user_id]["editing_type"] = "addons"
-
+    
     await callback.message.edit_caption(
         caption=callback.message.caption + f"\n\n❌ <b>ДОБАВКИ НЕТ В НАЛИЧИИ</b>\nОжидаем реакции клиента...",
         reply_markup=None
@@ -1191,18 +1142,18 @@ async def no_addon_available(callback: types.CallbackQuery):
 async def client_edit_order(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     payment_data = pending_payments.get(user_id)
-
+    
     if not payment_data:
         await callback.answer("Данные заказа не найдены")
         return
-
+    
     editing_type = payment_data.get("editing_type")
     order_index = payment_data.get("editing_index", 0)
     orders = payment_data["orders"]
     item = orders[order_index]
-
+    
     await callback.answer("Начинаем изменение...")
-
+    
     if editing_type == "item":
         await state.set_state(EditState.selecting_replacement)
         await state.update_data(
@@ -1213,7 +1164,7 @@ async def client_edit_order(callback: types.CallbackQuery, state: FSMContext):
             old_addons=item['addons'],
             old_price=item['price']
         )
-
+        
         text = (
             f"🔄 <b>Замена шаурмы</b>\n\n"
             f"Было: <b>{item['item']}</b> ({item['size']}) - {item['price']}₽\n\n"
@@ -1221,11 +1172,11 @@ async def client_edit_order(callback: types.CallbackQuery, state: FSMContext):
         )
         await callback.message.delete()
         await callback.message.answer(text, reply_markup=menu_keyboard())
-
+        
     elif editing_type == "sauce":
         await state.set_state(EditState.selecting_new_sauce)
         await state.update_data(editing_index=order_index)
-
+        
         text = (
             f"🔄 <b>Замена соуса</b>\n\n"
             f"Было: <b>{item['sauce']}</b> для {item['item']} ({item['size']})\n\n"
@@ -1233,7 +1184,7 @@ async def client_edit_order(callback: types.CallbackQuery, state: FSMContext):
         )
         await callback.message.delete()
         await callback.message.answer(text, reply_markup=sauce_keyboard())
-
+        
     elif editing_type == "addons":
         await state.set_state(EditState.selecting_new_addons)
         await state.update_data(
@@ -1241,7 +1192,7 @@ async def client_edit_order(callback: types.CallbackQuery, state: FSMContext):
             new_addons=[],
             new_addons_price=0
         )
-
+        
         text = (
             f"🔄 <b>Замена добавок</b>\n\n"
             f"Было: {', '.join(item['addons']) if item['addons'] else 'нет'}\n\n"
@@ -1256,7 +1207,7 @@ async def select_replacement_item(message: types.Message, state: FSMContext):
     item_name = message.text
     await state.update_data(new_item=item_name)
     await state.set_state(EditState.selecting_replacement_size)
-
+    
     text = f"🌯 <b>{item_name}</b>\n\n{MENU[item_name]['desc']}\n\nВыбери размер:"
     await message.answer(text, reply_markup=size_keyboard(item_name))
 
@@ -1267,23 +1218,23 @@ async def select_replacement_size(message: types.Message, state: FSMContext):
     data = await state.get_data()
     item_name = data["new_item"]
     price = MENU[item_name]["prices"][size]
-
+    
     await state.update_data(new_size=size, new_base_price=price)
-
+    
     old_sauce = data.get("old_sauce")
-
+    
     text = (
         f"✅ <b>{item_name}</b> ({size}) - {price}₽\n\n"
         f"Оставить соус <b>{old_sauce}</b> или выбрать другой?"
     )
-
+    
     kb = types.InlineKeyboardMarkup(inline_keyboard=[
         [
             types.InlineKeyboardButton(text=f"🥫 Оставить {old_sauce}", callback_data="keep_sauce"),
             types.InlineKeyboardButton(text="🔄 Другой соус", callback_data="change_sauce")
         ]
     ])
-
+    
     await message.answer(text, reply_markup=kb)
 
 
@@ -1292,15 +1243,15 @@ async def keep_sauce(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     old_sauce = data.get("old_sauce")
     old_addons = data.get("old_addons", [])
-
+    
     new_addons_price = sum(ADDONS.get(a, 0) for a in old_addons)
     new_price = data["new_base_price"] + new_addons_price
-
+    
     user_id = callback.from_user.id
     payment_data = pending_payments[user_id]
     order_index = data["editing_index"]
     item = payment_data["orders"][order_index]
-
+    
     item.update({
         "item": data["new_item"],
         "size": data["new_size"],
@@ -1308,10 +1259,10 @@ async def keep_sauce(callback: types.CallbackQuery, state: FSMContext):
         "addons": old_addons,
         "price": new_price
     })
-
+    
     new_total = sum(i["price"] for i in payment_data["orders"])
     payment_data["total"] = new_total
-
+    
     text = "🛒 <b>Заказ обновлён:</b>\n\n"
     for i, order_item in enumerate(payment_data["orders"], 1):
         text += f"{i}. <b>{order_item['item']}</b> ({order_item['size']})\n"
@@ -1319,15 +1270,15 @@ async def keep_sauce(callback: types.CallbackQuery, state: FSMContext):
         if order_item['addons']:
             text += f"   ➕ {', '.join(order_item['addons'])}\n"
         text += f"   💰 {order_item['price']}₽\n\n"
-
+    
     text += f"<b>НОВАЯ СУММА: {new_total}₽</b>\n\n"
     text += "Отправь скриншот оплаты на новую сумму!"
-
+    
     await callback.message.delete()
     await callback.message.answer(text, reply_markup=main_menu())
-
+    
     await state.clear()
-
+    
     try:
         await bot.send_message(
             chat_id=COOK_CHAT_ID,
@@ -1358,12 +1309,12 @@ async def select_new_sauce(message: types.Message, state: FSMContext):
     payment_data = pending_payments[user_id]
     order_index = data["editing_index"]
     item = payment_data["orders"][order_index]
-
+    
     item["sauce"] = sauce
-
+    
     new_total = sum(i["price"] for i in payment_data["orders"])
     payment_data["total"] = new_total
-
+    
     text = "🛒 <b>Заказ обновлён:</b>\n\n"
     for i, order_item in enumerate(payment_data["orders"], 1):
         text += f"{i}. <b>{order_item['item']}</b> ({order_item['size']})\n"
@@ -1371,13 +1322,13 @@ async def select_new_sauce(message: types.Message, state: FSMContext):
         if order_item['addons']:
             text += f"   ➕ {', '.join(order_item['addons'])}\n"
         text += f"   💰 {order_item['price']}₽\n\n"
-
+    
     text += f"<b>СУММА: {new_total}₽</b> (без изменений)\n\n"
     text += "Всё в порядке! Отправь скриншот оплаты."
-
+    
     await message.answer(text, reply_markup=main_menu())
     await state.clear()
-
+    
     try:
         await bot.send_message(
             chat_id=COOK_CHAT_ID,
@@ -1397,21 +1348,21 @@ async def select_new_sauce(message: types.Message, state: FSMContext):
 async def toggle_new_addon(message: types.Message, state: FSMContext):
     addon_text = message.text.replace("✅ ", "").split(" - ")[0]
     addon_name = addon_text.strip()
-
+    
     if addon_name not in ADDONS:
         return
-
+    
     data = await state.get_data()
     addons = data.get("new_addons", [])
     addons_price = data.get("new_addons_price", 0)
-
+    
     if addon_name in addons:
         addons.remove(addon_name)
         addons_price -= ADDONS[addon_name]
     else:
         addons.append(addon_name)
         addons_price += ADDONS[addon_name]
-
+    
     await state.update_data(new_addons=addons, new_addons_price=addons_price)
     await message.answer("Добавки обновлены:", reply_markup=addons_list_keyboard(addons))
 
@@ -1421,19 +1372,19 @@ async def finish_new_addons(message: types.Message, state: FSMContext):
     data = await state.get_data()
     new_addons = data.get("new_addons", [])
     new_addons_price = data.get("new_addons_price", 0)
-
+    
     user_id = message.from_user.id
     payment_data = pending_payments[user_id]
     order_index = data["editing_index"]
     item = payment_data["orders"][order_index]
-
+    
     old_addons_price = sum(ADDONS.get(a, 0) for a in item.get("addons", []))
     item["addons"] = new_addons
     item["price"] = item["price"] - old_addons_price + new_addons_price
-
+    
     new_total = sum(i["price"] for i in payment_data["orders"])
     payment_data["total"] = new_total
-
+    
     text = "🛒 <b>Заказ обновлён:</b>\n\n"
     for i, order_item in enumerate(payment_data["orders"], 1):
         text += f"{i}. <b>{order_item['item']}</b> ({order_item['size']})\n"
@@ -1441,13 +1392,13 @@ async def finish_new_addons(message: types.Message, state: FSMContext):
         if order_item['addons']:
             text += f"   ➕ {', '.join(order_item['addons'])}\n"
         text += f"   💰 {order_item['price']}₽\n\n"
-
+    
     text += f"<b>НОВАЯ СУММА: {new_total}₽</b>\n\n"
     text += "Отправь скриншот оплаты на новую сумму!"
-
+    
     await message.answer(text, reply_markup=main_menu())
     await state.clear()
-
+    
     try:
         await bot.send_message(
             chat_id=COOK_CHAT_ID,
@@ -1467,11 +1418,11 @@ async def finish_new_addons(message: types.Message, state: FSMContext):
 async def client_cancel_order(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     payment_data = pending_payments.get(user_id)
-
+    
     if payment_data:
         user_orders[user_id] = []
         pending_payments.pop(user_id, None)
-
+        
         await callback.message.delete()
         await callback.message.answer(
             "❌ <b>Заказ отменён</b>\n\n"
@@ -1479,7 +1430,7 @@ async def client_cancel_order(callback: types.CallbackQuery):
             "Начните новый заказ через /start",
             reply_markup=main_menu()
         )
-
+        
         try:
             await bot.send_message(
                 chat_id=COOK_CHAT_ID,
@@ -1493,7 +1444,7 @@ async def client_cancel_order(callback: types.CallbackQuery):
             "Заказ не найден. Начните заново /start",
             reply_markup=main_menu()
         )
-
+    
     await callback.answer("Заказ отменён")
 
 
@@ -1501,33 +1452,33 @@ async def client_cancel_order(callback: types.CallbackQuery):
 async def confirm_payment(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[1])
     payment_data = pending_payments.get(user_id)
-
+    
     if not payment_data:
         await callback.answer("Заказ не найден")
         return
-
+    
     orders = payment_data["orders"]
     total = payment_data["total"]
     chat_id = payment_data["chat_id"]
-
+    
     user_id_str = str(user_id)
     if user_id_str not in orders_history:
         orders_history[user_id_str] = []
-
+    
     orders_history[user_id_str].append({
         "date": datetime.now().strftime("%d.%m.%Y %H:%M"),
         "items": orders,
         "total": total
     })
-
+    
     if len(orders_history[user_id_str]) > 20:
         orders_history[user_id_str] = orders_history[user_id_str][-20:]
-
+    
     save_orders_history()
-
+    
     bonus = math.floor(total / 100)
     loyalty_points[user_id] = loyalty_points.get(user_id, 0) + bonus
-
+    
     try:
         await bot.send_message(
             chat_id=chat_id,
@@ -1544,14 +1495,14 @@ async def confirm_payment(callback: types.CallbackQuery):
         )
     except Exception as e:
         print(f"Ошибка уведомления клиента: {e}")
-
+    
     await callback.message.edit_caption(
         caption=callback.message.caption + "\n\n✅ <b>ОПЛАТА ПОДТВЕРЖДЕНА</b>",
         reply_markup=None
     )
-
+    
     await callback.answer("Заказ подтверждён")
-
+    
     user_orders[user_id] = []
     pending_payments.pop(user_id, None)
 
@@ -1560,14 +1511,14 @@ async def confirm_payment(callback: types.CallbackQuery):
 async def cancel_payment(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[1])
     payment_data = pending_payments.get(user_id)
-
+    
     if not payment_data:
         await callback.answer("Заказ не найден")
         return
-
+    
     total = payment_data["total"]
     chat_id = payment_data["chat_id"]
-
+    
     try:
         await bot.send_message(
             chat_id=chat_id,
@@ -1582,14 +1533,14 @@ async def cancel_payment(callback: types.CallbackQuery):
         )
     except Exception as e:
         print(f"Ошибка уведомления клиента: {e}")
-
+    
     await callback.message.edit_caption(
         caption=callback.message.caption + "\n\n❌ <b>ОПЛАТА ОТКЛОНЕНА</b>",
         reply_markup=None
     )
-
+    
     await callback.answer("Заказ отменён")
-
+    
     pending_payments.pop(user_id, None)
 
 
@@ -1601,7 +1552,7 @@ async def no_screenshot(message: types.Message):
 @dp.message(F.text == "🔙 Назад")
 async def go_back(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
-
+    
     if current_state == OrderState.selecting_item.state:
         await state.clear()
         await message.answer("Главное меню:", reply_markup=main_menu())
@@ -1626,31 +1577,31 @@ async def go_back(message: types.Message, state: FSMContext):
 async def main():
     # Загружаем историю заказов
     load_orders_history()
-
+    
     print("=" * 50)
     print("🚀 Shawarma Sheikh запускается...")
     print(f"👨‍🍳 Заказы в группу: {COOK_CHAT_ID}")
     print("📜 История заказов загружена")
-
+    
     if QRCODE_AVAILABLE:
         print("🤖 QR-коды доступны")
     else:
-        print("❌ QR-коды недоступны. Установите: pip install qrcode[pil]")
-
+        print("❌ QR-коды недоступны")
+    
     print("=" * 50)
-
-    # Запускаем веб-сервер для поддержания активности на Replit
+    
+    # Запускаем веб-сервер
     try:
         web_runner = await web_server()
-        print("🌐 Веб-сервер активен (для поддержания бота онлайн)")
+        print("🌐 Веб-сервер активен")
     except Exception as e:
         logging.error(f"Ошибка запуска веб-сервера: {e}")
-
+    
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Бот работает!")
     print("📍 Бот: @Shawarma_Sheikh_bot")
     print("=" * 50)
-
+    
     await dp.start_polling(bot)
 
 
