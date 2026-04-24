@@ -608,16 +608,12 @@ async def show_phone_payment(message: types.Message, state: FSMContext):
     total = data["total"]
     text = (
         f"📱 <b>Оплата по номеру телефона</b>\n\n"
-        f"💰 Сумма: <b>{total}₽</b>\n\n"
-        f"📞 Номер для перевода:\n<code>{PHONE_NUMBER}</code>\n\n"
-        f"🏦 Банк: {BANK_NAME}\n\n"
-        f"📋 <b>Как оплатить:</b>\n"
-        f"1. Откройте приложение банка\n"
-        f"2. Выберите «Перевод по номеру телефона»\n"
-        f"3. Вставьте номер выше\n"
-        f"4. Введите сумму: {total}₽\n"
-        f"5. Подтвердите перевод\n\n"
-        f"📸 <b>После оплаты отправьте скриншот сюда</b>"
+        f"💰 Сумма к оплате: <b>{total}₽</b>\n\n"
+        f"📞 Номер телефона:\n"
+        f"<code>{PHONE_NUMBER}</code>\n"
+        f"<i>👆 Нажми на номер чтобы скопировать</i>\n\n"
+        f"🏦 {BANK_NAME}\n\n"
+        f"📸 <b>После оплаты отправь скриншот сюда</b>"
     )
     await message.answer(text, reply_markup=types.ReplyKeyboardRemove())
 
