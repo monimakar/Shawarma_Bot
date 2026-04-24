@@ -958,18 +958,7 @@ async def client_cancel_order(callback: types.CallbackQuery):
         user_orders[user_id] = []
         pending_payments.pop(user_id, None)
         await callback.message.delete()
-        await callback.message.answer("❌ <b>Заказ отменён</b>\n\nВаша кор Activity capacity reached. Temporarily unable to generate complete response. Please try again.
-        @dp.callback_query(F.data == "cancel_client_order")
-async def client_cancel_order(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    if pending_payments.get(user_id):
-        user_orders[user_id] = []
-        pending_payments.pop(user_id, None)
-        await callback.message.delete()
-        await callback.message.answer(
-            "❌ <b>Заказ отменён</b>\n\nВаша корзина очищена.\nНачните новый заказ через /start",
-            reply_markup=main_menu()
-        )
+        await callback.message.answer("❌ <b>Заказ отменён</b>\n\nВаша корзина очищена.\nНачните новый заказ через /start", reply_markup=main_menu())
         try:
             await bot.send_message(chat_id=COOK_CHAT_ID, text=f"❌ Заказ клиента {user_id} отменён клиентом")
         except: pass
@@ -1050,13 +1039,8 @@ async def no_screenshot(message: types.Message):
 
 @dp.message(F.text == "🔙 Назад")
 async def go_back(message: types.Message, state: FSMContext):
-    current_state = await state.get_state()
-    if current_state in [OrderState.waiting_phone.state, OrderState.waiting_comment.state, OrderState.waiting_time.state, OrderState.waiting_screenshot.state]:
-        await state.clear()
-        await message.answer("Главное меню:", reply_markup=main_menu())
-    else:
-        await state.clear()
-        await message.answer("Главное меню:", reply_markup=main_menu())
+    await state.clear()
+    await message.answer("Главное меню:", reply_markup=main_menu())
 
 
 async def main():
