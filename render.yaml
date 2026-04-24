@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: shawarma-bot
+    env: python
+    buildCommand: pip install aiogram aiohttp qrcode[pil]
+    startCommand: python bot.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
